@@ -1,0 +1,31 @@
+[AWS_SQS_QUEUE]
+AWS_ACCOUNT_ID={{ AWS_ACCOUNT_ID }}
+region_name=us-west-2
+aws_access_key={{ AWS_ACCESS_KEY }}
+aws_secret_key={{ AWS_SECRET_KEY }}
+aws_session_token={{AWS_SESSION_TOKEN }}
+listener_queue = {{ SQS_LISTENER_QUEUE }}
+reply_queue = test
+poll_interval = 60
+queue_visibility_timeout = 600
+error_queue_name = None
+error_queue_visibility_timeout = 600
+reply_timeout_sec = 20
+execute_reply_timeout_sec = 600
+deploy_process_timeout_sec = 900
+force_delete = False
+wait_time = 0
+max_number_of_messages =  1
+queue_url = {{ QUEUE_URL }}
+fifo_group_id = {{ FIFO_GROUP_ID }}
+
+[DAEMON]
+PID_FILE_PATH={{ PID_FILE_PATH }}/daemon_pid.pid
+DAEMON_OUTPUT_OVERWRITE=False 
+DAEMON_OUTPUT_FILE={{ DAEMON_OUTPUT_FILE_PATH }}/listener_out.log
+DAEMON_ERROR_FILE={{ DAEMON_OUTPUT_FILE_PATH }}/listener_error.log
+DAEMON_STDIN=/dev/null
+
+[ADES_WPS-T_SERVER]
+wps_server_url=http://127.0.0.1:5000
+
