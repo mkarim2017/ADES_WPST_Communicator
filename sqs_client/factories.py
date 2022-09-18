@@ -6,18 +6,20 @@ from sqs_client.idle_queue_sweeper import IdleQueueSweeper
 
 class SqsConnectionFactory:
 
-    def __init__(self, region_name, access_key=None, secret_key=None, session_token=None):
+    def __init__(self, region_name, access_key=None, secret_key=None, session_token=None, credentials_file_profile=None):
         self._region_name = region_name
         self._access_key= access_key 
         self._secret_key = secret_key
         self._session_token = session_token
+        self._credentials_file_profile = credentials_file_profile
     
     def build(self):
         return SqsConnection(
             access_key=self._access_key,
             secret_key=self._secret_key,
             region_name=self._region_name,
-            session_token=self._session_token
+            session_token=self._session_token,
+            credentials_file_profile=self._credentials_file_profile
         )
 
 class BaseFactory:
@@ -27,12 +29,14 @@ class BaseFactory:
         access_key=None, 
         secret_key=None,
         session_token=None, 
+        credentials_file_profile=None,
         sqs_connection_factory=SqsConnectionFactory
     ):
         self._region_name = region_name
         self._access_key = access_key 
         self._secret_key = secret_key 
         self._session_token = session_token
+        self._credentials_file_profile = credentials_file_profile
         self._sqs_connection_factory = sqs_connection_factory
     
     def build(self):
@@ -44,6 +48,7 @@ class BaseFactory:
             self._access_key, 
             self._secret_key,
             self._session_token,
+            self._credentials_file_profile
         ).build()
 
     

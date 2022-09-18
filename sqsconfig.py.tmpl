@@ -1,9 +1,8 @@
 [AWS_SQS_QUEUE]
 AWS_ACCOUNT_ID={{ AWS_ACCOUNT_ID }}
 region_name=us-west-2
-aws_access_key={{ AWS_ACCESS_KEY }}
-aws_secret_key={{ AWS_SECRET_KEY }}
-aws_session_token={{AWS_SESSION_TOKEN }}
+aws_credentials_file={{ FULL_PATH_CREDENTIAL_FILE }}
+aws_credentials_file_profile={{ PROFILE_NAME }}
 listener_queue = {{ SQS_LISTENER_QUEUE }}
 reply_queue = test
 poll_interval = 60

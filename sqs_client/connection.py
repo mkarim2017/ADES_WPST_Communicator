@@ -4,10 +4,11 @@ from sqs_client.contracts import SqsConnection as SqsConnectionBase
 
 class SqsConnection(SqsConnectionBase):
 
-    def __init__(self, region_name: str, access_key: str=None, secret_key: str=None, session_token: str=None):
+    def __init__(self, region_name: str, access_key: str=None, secret_key: str=None, session_token: str=None, credentials_file_profile=None):
         self._access_key = access_key 
         self._secret_key = secret_key
         self._session_token = session_token
+        self._credentials_file_profile = credentials_file_profile
         self._region_name = region_name 
         self._queue_url = None
         self._load_resource()
@@ -26,19 +27,25 @@ class SqsConnection(SqsConnectionBase):
             raise Exception("Queue is not defined.")
 
     def _load_resource(self):
-        session = boto3.Session(
-            aws_access_key_id=self._access_key,
-            aws_secret_access_key=self._secret_key,
-            aws_session_token=self._session_token
-        )
+        if self._credentials_file_profile:
+            session = boto3.Session(profile_name=self._credentials_file_profile)
+        else:
+            session = boto3.Session(
+                aws_access_key_id=self._access_key,
+                aws_secret_access_key=self._secret_key,
+                aws_session_token=self._session_token
+            )
         self.resource = session.resource('sqs', region_name=self._region_name)
 
     def _load_client(self):
-        self.client = boto3.client(
-            'sqs',
-            aws_access_key_id=self._access_key,
-            aws_secret_access_key=self._secret_key,
-            aws_session_token=self._session_token,
-            region_name=self._region_name
-        )
-  
+        if self._credentials_file_profile:
+            session = boto3.Session(profile_name=self._credentials_file_profile)
+            self.client = session.client('sqs')
+        else:
+            self.client = boto3.client(
+                'sqs',
+                aws_access_key_id=self._access_key,
+                aws_secret_access_key=self._secret_key,
+                aws_session_token=self._session_token,
+                region_name=self._region_name
+            )

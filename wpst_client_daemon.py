@@ -25,7 +25,7 @@ from sqs_client.factories import SubscriberFactory, PublisherFactory
 logger = logging.getLogger('sqs_listener')
 logger.setLevel(logging.INFO)
 
-sh = logging.FileHandler('wpst_sqs_client.log')
+sh = logging.FileHandler('soamc_sqs_client.log')
 sh.setLevel(logging.INFO)
 
 formatstr = '[%(asctime)s - %(name)s - %(levelname)s]  %(message)s'
@@ -48,24 +48,34 @@ config = configparser.ConfigParser()
 config.read(CONFIG_FILER_PATH)
 logger.info(config.sections())
 
+
+aws_credentials_file =config["AWS_SQS_QUEUE"]["aws_credentials_file"]
+AWS_ACCESS_KEY_ID = config.get('default', 'aws_access_key_id')
+AWS_SECRET_ACCESS_KEY = config.get('default', 'aws_secret_access_key')
+AWS_SESSION_TOKEN = config.get('default', 'aws_session_token')
+region_name=config["AWS_SQS_QUEUE"]['region_name']
+queue_url=config["AWS_SQS_QUEUE"]['queue_url']
+
+os.environ["AWS_SHARED_CREDENTIALS_FILE"] = aws_credentials_file 
 os.environ["AWS_ACCOUNT_ID"] = config["AWS_SQS_QUEUE"]["AWS_ACCOUNT_ID"]
-os.environ["AWS_ACCESS_KEY"] = config["AWS_SQS_QUEUE"]["aws_access_key"]
-os.environ["AWS_SECRET_ACCESS_KEY"] = config["AWS_SQS_QUEUE"]["aws_secret_key"]
+os.environ["AWS_ACCESS_KEY"] = AWS_ACCESS_KEY_ID
+os.environ["AWS_SECRET_ACCESS_KEY"] = AWS_SECRET_ACCESS_KEY
+os.environ["AWS_SESSION_TOKEN"] = AWS_SESSION_TOKEN
 logger.info(os.environ["AWS_ACCOUNT_ID"])
 wps_server = config["ADES_WPS-T_SERVER"]["wps_server_url"]
 
 
 subscriber = SubscriberFactory(
-    access_key=config["AWS_SQS_QUEUE"]["aws_access_key"],
-    secret_key=config["AWS_SQS_QUEUE"]["aws_secret_key"],
-    region_name=config["AWS_SQS_QUEUE"]['region_name'],
-    queue_url=config["AWS_SQS_QUEUE"]['queue_url']
+    access_key=AWS_ACCESS_KEY_ID,
+    secret_key=AWS_SECRET_ACCESS_KEY,
+    region_name=region_name,
+    queue_url=queue_url
 ).build()
 
 publisher = PublisherFactory(
-    access_key=config["AWS_SQS_QUEUE"]["aws_access_key"],
-    secret_key=config["AWS_SQS_QUEUE"]["aws_secret_key"],
-    region_name=config["AWS_SQS_QUEUE"]['region_name']
+    access_key=AWS_ACCESS_KEY_ID,
+    secret_key=AWS_SECRET_ACCESS_KEY,
+    region_name=region_name
 ).build()
 '''
 
@@ -246,26 +256,44 @@ if __name__ == "__main__":
     config.read(config_file)
     logger.info(config.sections())
 
+    default_credential_file = os.path.join(os.path.expanduser('~'), ".aws/credentials")
+    default_profile = "default"
+    aws_credentials_file =config["AWS_SQS_QUEUE"].get("aws_credentials_file", default_credential_file)
+    aws_credentials_file_profile = config["AWS_SQS_QUEUE"].get('aws_credentials_file_profile', default_profile)
+    config2 = configparser.RawConfigParser()
+    config2.read(aws_credentials_file)
+    AWS_ACCESS_KEY_ID = config2.get('default', 'aws_access_key_id')
+    AWS_SECRET_ACCESS_KEY = config2.get('default', 'aws_secret_access_key')
+    AWS_SESSION_TOKEN = config2.get('default', 'aws_session_token')
+
+    region_name=config["AWS_SQS_QUEUE"]['region_name']
+    queue_url=config["AWS_SQS_QUEUE"]['queue_url']
+
     os.environ["AWS_ACCOUNT_ID"] = config["AWS_SQS_QUEUE"]["AWS_ACCOUNT_ID"]
-    os.environ["AWS_ACCESS_KEY"] = config["AWS_SQS_QUEUE"]["aws_access_key"]
-    os.environ["AWS_SECRET_ACCESS_KEY"] = config["AWS_SQS_QUEUE"]["aws_secret_key"]
+    os.environ["AWS_ACCESS_KEY"] = AWS_ACCESS_KEY_ID
+    os.environ["AWS_SECRET_ACCESS_KEY"] = AWS_SECRET_ACCESS_KEY
+    os.environ["AWS_SESSION_TOKEN"] = AWS_SESSION_TOKEN
     logger.info(os.environ["AWS_ACCOUNT_ID"])
     wps_server = config["ADES_WPS-T_SERVER"]["wps_server_url"]
 
+
     subscriber = SubscriberFactory(
-        access_key=config["AWS_SQS_QUEUE"]["aws_access_key"],
-        secret_key=config["AWS_SQS_QUEUE"]["aws_secret_key"],
-        session_token = config["AWS_SQS_QUEUE"]["aws_session_token"],
-        region_name=config["AWS_SQS_QUEUE"]['region_name'],
-        queue_url=config["AWS_SQS_QUEUE"]['queue_url']
+        access_key=AWS_ACCESS_KEY_ID,
+        secret_key=AWS_SECRET_ACCESS_KEY,
+        session_token = AWS_SESSION_TOKEN,
+        region_name=region_name,
+        credentials_file_profile=aws_credentials_file_profile,
+        queue_url=queue_url
     ).build()
 
     publisher = PublisherFactory(
-        access_key=config["AWS_SQS_QUEUE"]["aws_access_key"],
-        secret_key=config["AWS_SQS_QUEUE"]["aws_secret_key"],
-        session_token = config["AWS_SQS_QUEUE"]["aws_session_token"],
-        region_name=config["AWS_SQS_QUEUE"]['region_name']
+        access_key=AWS_ACCESS_KEY_ID,
+        secret_key=AWS_SECRET_ACCESS_KEY,
+        session_token = AWS_SESSION_TOKEN,
+        region_name=region_name,
+        credentials_file_profile=aws_credentials_file_profile
     ).build()
+
 
     sqs_config={}
     for key in config["AWS_SQS_QUEUE"]:
