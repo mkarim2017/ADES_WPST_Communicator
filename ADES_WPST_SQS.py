@@ -3,6 +3,10 @@ import configparser
 import json
 import os
 import uuid
+import backoff
+import botocore
+import boto3
+
 
 from sqs_client.factories import ReplyQueueFactory, PublisherFactory
 from sqs_client.message import RequestMessage
@@ -36,6 +40,8 @@ class ADES_WPST_SQS():
         
         config = configparser.ConfigParser()
         config.read(config_file)
+
+        self.reply_queue_dict = {}
         
         self.queue_url = queue_url
         self.reply_queue_name = reply_queue_name
@@ -66,6 +72,77 @@ class ADES_WPST_SQS():
             region_name=config["AWS_SQS_QUEUE"]['region_name']
         ).build()
 
+        queue_name = os.path.basename(self.queue_url)
+        self.reply_queue_dict[queue_name] = self.reply_queue
+
+    
+    def set_publisher(self, access_key, secret_key, session_token, region_name=config["AWS_SQS_QUEUE"]['region_name']):
+        self.publisher = PublisherFactory(
+            access_key=access_key,
+            secret_key=secret_key,
+            session_token = session_token,
+            region_name=region_name
+        ).build()
+
+
+    def set_reply_queue(self, access_key, secret_key, session_token, region_name=config["AWS_SQS_QUEUE"]['region_name'])    
+        if reply_queue_name == "":
+            self.reply_queue_name = "reply_queue_{}".format(os.path.basename(self.queue_url))
+        self.reply_queue = ReplyQueueFactory(
+            name=self.reply_queue_name,
+            access_key=access_key,
+            secret_key=secret_key,
+            session_token = session_token,
+            region_name=region_name
+        ).build()
+
+        queue_name = os.path.basename(self.queue_url)
+        self.reply_queue_dict[queue_name] = self.reply_queue
+
+
+    def set_env(self, access_key, secret_key, session_token):
+        os.environ["AWS_ACCESS_KEY"] = access_key
+        os.environ["AWS_SECRET_ACCESS_KEY"] = secret_key
+        os.environ["AWS_SESSION_TOKEN"] = session_token
+
+    
+    def refresh_aws_credentials():
+
+        headers =  { 'accept': 'application/json', "Content-Type":"application/json", "Authorization": f"Bearer {api_key}"}
+        print(json.dumps(headers, indent=2))
+        payload = {
+            "account_number": str(account_number),
+            "iam_role_name": str(iam_role_name)
+        }
+        print(cred_url)
+        response = requests.post(cred_url, data=json.dumps(payload), headers=headers).json()
+        print(response)
+        status = response['status']
+        data = response['data']
+
+        access_key = data['access_key']
+        secret_key = data['secret_access_key']
+        session_token = data['session_token']
+
+        set.set_env(access_key, secret_key, session_token)
+        self.set_publisher(access_key, secret_key, session_token
+        
+
+        queue_name = os.path.basename(self.queue_url)
+        if queue_name in self.reply_queue_dict.keys():  
+            reply_queue = self.reply_queue_dict[queue_name] 
+            try:
+                reply_queue.remove_queue()
+            except Exception:
+                pass
+            del self.reply_queue_dict[queue_name]
+ 
+        self.set_reply_queue( access_key, secret_key, session_token)
+
+
+    @backoff.on_exception(backoff.expo,
+                      botocore.exceptions.ClientError,
+                      max_time=10)
     def submit_message(self, data, timeout=None):
 
         print("\n")
@@ -81,7 +158,13 @@ class ADES_WPST_SQS():
         )
         
         #print("submit_message : queue_url :  data : {}".format(self.queue_url,  json.dumps(data)))
-        self.publisher.send_message(message)
+
+        try:
+            self.publisher.send_message(message)
+        except Exception as e:
+            self.refresh_aws_credentials()
+            raise e
+
         # print("submit_message : sent")
 
         try:
