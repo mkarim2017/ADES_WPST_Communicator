@@ -30,7 +30,8 @@ class ReplyQueue(ReplyQueueBase):
         heartbeat_interval_seconds=300
     ):
         self._id = None
-        self._queue = None
+        #self._queue = None
+        self._queue_url = None
         self._name = name
         self._connection = sqs_connection
         self._subscriber = subscriber
@@ -45,16 +46,34 @@ class ReplyQueue(ReplyQueueBase):
         self._logger = logging.getLogger()
 
     def get_url(self):
-        if not self._queue:
-            self._create_queue() 
-        return self._queue.url 
+        try:
+            queue_url = self._connection.client.get_queue_url(QueueName=self._name)['QueueUrl']
+            self._connection.client.set_queue_attributes(
+                QueueUrl=queue_url,
+                Attributes={
+                    'MessageRetentionPeriod': str(self._message_retention_period)
+                }
+            )
+            self._queue_url = queue_url
+            install_mp_handler(self._logger)
+            self._start_sub_thread()
+            # self._start_heartbeat()
+            # self._start_idle_queue_sweeper()
+            return self._queue_url
+        except Exception as e:
+            print(str(e))
+            if not self._queue:
+                self._create_queue() 
+            return self._queue.url 
     
     def get_name(self):
-        self._id = str(random.getrandbits(32))
-        return self._name + self._id
+        self._id = "" #str(random.getrandbits(32))
+        # return self._name + self._id
+        return self._name
     
     def get_response_by_id(self, message_id: str, timeout: int=5) -> Message:
         start = time()
+        print("message_id : {}".format(message_id))
         while True: 
             message = self._messages.get(message_id)
             if not message:
@@ -64,7 +83,7 @@ class ReplyQueue(ReplyQueueBase):
             return message
     
     def _create_queue(self):
-        print("self.get_name() : {}".format(self.get_name()))       
+        print("self.get_name() : {}".format(self.get_name()))   
         self._queue = self._connection.resource.create_queue(
             QueueName=self.get_name(),
             Attributes={
@@ -74,10 +93,11 @@ class ReplyQueue(ReplyQueueBase):
                 'heartbeat': str_timestamp()
             }
         )
-        install_mp_handler(self._logger)       
+        install_mp_handler(self._logger)
         self._start_sub_thread()
         self._start_heartbeat()
         self._start_idle_queue_sweeper()
+        print("created {}".format(self.get_name()))
     
     def _start_idle_queue_sweeper(self):
         self._idle_queue_sweeper.set_name(self._name)
@@ -87,9 +107,10 @@ class ReplyQueue(ReplyQueueBase):
         if self._queue:
             self._stop_heartbeat()
             self._idle_queue_sweeper.stop()
-            self._connection.client.delete_queue(QueueUrl=self._queue.url)
+            self._connection.client.delete_queue(QueueUrl=self._queue_url)
             self._queue = None
             uninstall_mp_handler(self._logger)
+            print("removed {}".format(self.get_name()))
     
     def _start_sub_thread(self):
         self._sub_thread = Thread(target=self._subscribe)
@@ -99,7 +120,7 @@ class ReplyQueue(ReplyQueueBase):
     def _start_heartbeat(self):
         self._heartbeat_process = Process(
             target=self._heartbeat, 
-            args=(self._heartbeat_interval_seconds, self._queue.url)
+            args=(self._heartbeat_interval_seconds, self._queue_url)
         )
         self._heartbeat_process.daemon = True
         self._heartbeat_process.start()
@@ -129,7 +150,7 @@ class ReplyQueue(ReplyQueueBase):
                 raise e 
     
     def _receive_messages(self):
-        self._subscriber.set_queue(self._queue.url)
+        self._subscriber.set_queue(self._queue_url)
         while True:
             qty_messages = 0
             for messages in self._subscriber.receive_messages(message_attribute_names=['RequestMessageId']):

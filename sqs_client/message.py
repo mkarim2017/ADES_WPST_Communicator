@@ -47,6 +47,7 @@ class RequestMessage(RequestMessageBase):
         return params
 
     def get_response(self, timeout=10) -> MessageBase:
+        print("_reply_queue : {}".format(self._reply_queue.get_name()))
         return self._reply_queue.get_response_by_id(self._request_id, timeout)
 
 class Message(MessageBase):

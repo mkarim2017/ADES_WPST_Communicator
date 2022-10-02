@@ -22,10 +22,17 @@ logger = logging.getLogger('soamc_submitter')
 logger.setLevel(logging.INFO)
 
 
-CONFIG_FILER_PATH = r'sqsconfig.py'
+CONFIG_FILE_PATH = r'sqsconfig.py'
 
 config = configparser.ConfigParser()
-config.read(CONFIG_FILER_PATH)
+config.read(CONFIG_FILE_PATH)
+
+request_queue_name = config["AWS_SQS_QUEUE"].get('request_queue_name', None)
+reply_queue_name = config["AWS_SQS_QUEUE"].get('reply_queue_name', 'reply_queue_{}'.format(request_queue_name))
+api_key = config["AWS_SQS_QUEUE"].get("api_key")
+cred_url = config["AWS_SQS_QUEUE"].get("cred_url")
+account_number = config["AWS_SQS_QUEUE"].get("account_number")
+iam_role_name = config["AWS_SQS_QUEUE"].get("iam_role_name")
 
 os.environ["AWS_ACCOUNT_ID"] = config["AWS_SQS_QUEUE"]["AWS_ACCOUNT_ID"]
 os.environ["AWS_ACCESS_KEY"] = config["AWS_SQS_QUEUE"]["aws_access_key"]
@@ -34,36 +41,30 @@ os.environ["AWS_SESSION_TOKEN"] = config["AWS_SQS_QUEUE"]["aws_session_token"]
 
 wps_server = config["ADES_WPS-T_SERVER"]["wps_server_url"]
 default_queue_url = config["AWS_SQS_QUEUE"].get('queue_url', None)
-default_reply_queue_name = config["AWS_SQS_QUEUE"].get('reply_queue', 'reply_queue_')
 reply_timeout_sec = int(config["AWS_SQS_QUEUE"].get("reply_timeout_sec", 20))
 execute_reply_timeout_sec = int(config["AWS_SQS_QUEUE"].get("execute_reply_timeout_sec", 600))
 deploy_process_timeout_sec = int(config["AWS_SQS_QUEUE"].get("deploy_process_timeout_sec", 900))
 
-api_key = config["AWS_SQS_QUEUE"].get("api_key")
-cred_url = config["AWS_SQS_QUEUE"].get("cred_url")
-account_number = config["AWS_SQS_QUEUE"].get("account_number")
-iam_role_name = config["AWS_SQS_QUEUE"].get("iam_role_name")
-default_reply_queue_name = config["AWS_SQS_QUEUE"].get('reply_queue', 'reply_queue_')
-
-default_reply_queue = ReplyQueueFactory(
-    name=default_reply_queue_name,
-    access_key=os.environ["AWS_ACCESS_KEY"],
-    secret_key=os.environ["AWS_SECRET_ACCESS_KEY"],
-    session_token = os.environ["AWS_SESSION_TOKEN"],
+reply_queue = ReplyQueueFactory(
+    name=reply_queue_name,
+    access_key=config["AWS_SQS_QUEUE"]["aws_access_key"],
+    secret_key=config["AWS_SQS_QUEUE"]["aws_secret_key"],
+    session_token = config["AWS_SQS_QUEUE"]["aws_session_token"],
     region_name=config["AWS_SQS_QUEUE"]['region_name']
 ).build()
 
+
 publisher = PublisherFactory(
-    access_key=os.environ["AWS_ACCESS_KEY"],
-    secret_key=os.environ["AWS_SECRET_ACCESS_KEY"],
-    session_token = os.environ["AWS_SESSION_TOKEN"],
+    access_key=config["AWS_SQS_QUEUE"]["aws_access_key"],
+    secret_key=config["AWS_SQS_QUEUE"]["aws_secret_key"],
+    session_token = config["AWS_SQS_QUEUE"]["aws_session_token"],
     region_name=config["AWS_SQS_QUEUE"]['region_name']
 ).build()
 
 cred_url = "https://login.mcp.nasa.gov/api/v3/temporary-credentials"
 
 reply_queue_dict = {}
-reply_queue_dict[os.path.basename(default_queue_url)] = default_reply_queue
+reply_queue_dict[os.path.basename(default_queue_url)] = reply_queue
 
 
 '''
@@ -82,23 +83,30 @@ logging.basicConfig(level=logging.INFO)
 
 app = typer.Typer()
 
+def get_sqs_client():
+    return boto3.client(
+        'sqs',
+        aws_access_key_id=config["AWS_SQS_QUEUE"]["aws_access_key"],
+        aws_secret_access_key=config["AWS_SQS_QUEUE"]["aws_secret_key"],
+        aws_session_token=config["AWS_SQS_QUEUE"]["aws_session_token"],
+        region_name=config["AWS_SQS_QUEUE"]["region_name"]
+    )
 
 def get_reply_queue(queue_url):
 
     global reply_queue_dict
 
     queue_name = os.path.basename(queue_url)
+    
     if queue_name in reply_queue_dict.keys():
+        print("reply queue found")
         return reply_queue_dict[queue_name]
-
-    reply_queue_name = "reply_queue_{}".format(queue_name)
-
-
+    
     reply_queue = ReplyQueueFactory(
         name=reply_queue_name,
-        access_key=os.environ["AWS_ACCESS_KEY"],
-        secret_key=os.environ["AWS_SECRET_ACCESS_KEY"],
-        session_token = os.environ["AWS_SESSION_TOKEN"],
+        access_key=config["AWS_SQS_QUEUE"]["aws_access_key"],
+        secret_key=config["AWS_SQS_QUEUE"]["aws_secret_key"],
+        session_token = config["AWS_SQS_QUEUE"]["aws_session_token"],
         region_name=config["AWS_SQS_QUEUE"]['region_name']
     ).build()
     reply_queue_dict[queue_name] = reply_queue
@@ -106,10 +114,12 @@ def get_reply_queue(queue_url):
     return reply_queue
 
 
-def update_aws_credentials(queue_url):
+def update_aws_credentials():
 
     global publisher
-    global  reply_queue_dict   
+    global  reply_queue_dict  
+    global config 
+    global reply_queue
     
     # auth_key = api_key.encode("ascii", "ignore")
     headers =  { 'accept': 'application/json', "Content-Type":"application/json", "Authorization": f"Bearer {api_key}"}
@@ -124,6 +134,13 @@ def update_aws_credentials(queue_url):
     status = response['status']
     data = response['data']
 
+    config["AWS_SQS_QUEUE"]["aws_access_key"] = data['access_key']
+    config["AWS_SQS_QUEUE"]["aws_secret_key"] = data['secret_access_key']
+    config["AWS_SQS_QUEUE"]["aws_session_token"] = data['session_token']
+
+    with open(CONFIG_FILE_PATH, 'w') as configfile:    # save
+        config.write(configfile)
+
     os.environ["AWS_ACCESS_KEY"] = data['access_key']
     os.environ["AWS_SECRET_ACCESS_KEY"] = data['secret_access_key']
     os.environ["AWS_SESSION_TOKEN"] = data['session_token']
@@ -135,19 +152,40 @@ def update_aws_credentials(queue_url):
         region_name=config["AWS_SQS_QUEUE"]['region_name']
     ).build()
 
-    queue_name = os.path.basename(queue_url)
-    if queue_name in reply_queue_dict.keys():  
-        reply_queue = reply_queue_dict[queue_name] 
-        reply_queue.remove_queue()
-        del reply_queue_dict[queue_name]
-              
+    print("AA")
+    
+
+    reply_queue = ReplyQueueFactory(
+        name=reply_queue_name,
+        access_key=data['access_key'],
+        secret_key=data['secret_access_key'],
+        session_token = data['session_token'],
+        region_name=config["AWS_SQS_QUEUE"]['region_name']
+    ).build()
+
+    print("CC")
+             
 
 @backoff.on_exception(backoff.expo,
                       botocore.exceptions.ClientError,
                       max_time=10)
-def submit_message(data, queue_url=default_queue_url, timeout=reply_timeout_sec):
+def submit_message(data, request_queue_url=default_queue_url, timeout=reply_timeout_sec, reply_queue_name=reply_queue_name):
+    
+    try:
+        sqs = get_sqs_client()
+        res = sqs.get_queue_url(QueueName=reply_queue_name)
+        print(res)
+    except Exception as e:
+        print(e.__class__.__name__)
+        print(str(e))
+        if "ExpiredToken" in str(e):
+            update_aws_credentials()
 
-    reply_queue = get_reply_queue(queue_url)
+    print("Updating Config Done")
+
+    request_queue_name = os.path.basename(request_queue_url)
+    queue_url = get_sqs_client().get_queue_url(QueueName=request_queue_name)['QueueUrl']
+
     message = RequestMessage(
         body= json.dumps(data),
         queue_url= queue_url,
@@ -170,7 +208,7 @@ def submit_message(data, queue_url=default_queue_url, timeout=reply_timeout_sec)
             group_id=group_id
     )
 
-    print("submit_message : queue_url : {} reply_queue : {} data : {}".format(queue_url, reply_queue, json.dumps(data)))
+    print("submit_message : queue_url : {} reply_queue : {} data : {}".format(queue_url, reply_queue.get_name(), json.dumps(data)))
     try:
         publisher.send_message(message)
         print("submit_message : sent")
@@ -198,7 +236,7 @@ def submit_message(data, queue_url=default_queue_url, timeout=reply_timeout_sec)
             pass
 
 @app.command()
-def getLandingPage(queue_url:str):
+def getLandingPage(queue_url:str=default_queue_url):
     data = {'job_type': const.GET_LANDING_PAGE}
     response = submit_message(data, queue_url)
     print(json.dumps(response, indent=2))
