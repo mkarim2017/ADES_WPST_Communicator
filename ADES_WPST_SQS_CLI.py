@@ -152,8 +152,6 @@ def update_aws_credentials():
         region_name=config["AWS_SQS_QUEUE"]['region_name']
     ).build()
 
-    print("AA")
-    
 
     reply_queue = ReplyQueueFactory(
         name=reply_queue_name,
@@ -163,8 +161,6 @@ def update_aws_credentials():
         region_name=config["AWS_SQS_QUEUE"]['region_name']
     ).build()
 
-    print("CC")
-             
 
 @backoff.on_exception(backoff.expo,
                       botocore.exceptions.ClientError,

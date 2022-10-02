@@ -50,9 +50,9 @@ logger.info(config.sections())
 
 
 aws_credentials_file =config["AWS_SQS_QUEUE"]["aws_credentials_file"]
-AWS_ACCESS_KEY_ID = config.get('default', 'aws_access_key_id')
-AWS_SECRET_ACCESS_KEY = config.get('default', 'aws_secret_access_key')
-AWS_SESSION_TOKEN = config.get('default', 'aws_session_token')
+AWS_ACCESS_KEY_ID = config.get('maap-hec', 'aws_access_key_id')
+AWS_SECRET_ACCESS_KEY = config.get('maap-hec', 'aws_secret_access_key')
+AWS_SESSION_TOKEN = None #config.get('maap-hec', 'aws_session_token')
 region_name=config["AWS_SQS_QUEUE"]['region_name']
 queue_url=config["AWS_SQS_QUEUE"]['queue_url']
 
@@ -257,14 +257,18 @@ if __name__ == "__main__":
     logger.info(config.sections())
 
     default_credential_file = os.path.join(os.path.expanduser('~'), ".aws/credentials")
-    default_profile = "default"
+    default_profile = "maap-hec"
     aws_credentials_file =config["AWS_SQS_QUEUE"].get("aws_credentials_file", default_credential_file)
     aws_credentials_file_profile = config["AWS_SQS_QUEUE"].get('aws_credentials_file_profile', default_profile)
     config2 = configparser.RawConfigParser()
     config2.read(aws_credentials_file)
-    AWS_ACCESS_KEY_ID = config2.get('default', 'aws_access_key_id')
-    AWS_SECRET_ACCESS_KEY = config2.get('default', 'aws_secret_access_key')
-    AWS_SESSION_TOKEN = config2.get('default', 'aws_session_token')
+    AWS_ACCESS_KEY_ID = config2.get(aws_credentials_file_profile, 'aws_access_key_id')
+    AWS_SECRET_ACCESS_KEY = config2.get(aws_credentials_file_profile, 'aws_secret_access_key')
+    AWS_SESSION_TOKEN = None
+    try:
+        AWS_SESSION_TOKEN = None #config2.get(aws_credentials_file_profile, 'aws_session_token')
+    except:
+        pass
 
     region_name=config["AWS_SQS_QUEUE"]['region_name']
     queue_url=config["AWS_SQS_QUEUE"]['queue_url']
@@ -272,7 +276,8 @@ if __name__ == "__main__":
     os.environ["AWS_ACCOUNT_ID"] = config["AWS_SQS_QUEUE"]["AWS_ACCOUNT_ID"]
     os.environ["AWS_ACCESS_KEY"] = AWS_ACCESS_KEY_ID
     os.environ["AWS_SECRET_ACCESS_KEY"] = AWS_SECRET_ACCESS_KEY
-    os.environ["AWS_SESSION_TOKEN"] = AWS_SESSION_TOKEN
+    if AWS_SESSION_TOKEN:
+        os.environ["AWS_SESSION_TOKEN"] = AWS_SESSION_TOKEN
     logger.info(os.environ["AWS_ACCOUNT_ID"])
     wps_server = config["ADES_WPS-T_SERVER"]["wps_server_url"]
 
