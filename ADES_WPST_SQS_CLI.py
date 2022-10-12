@@ -238,39 +238,39 @@ def getLandingPage(queue_url:str=default_queue_url):
     print(json.dumps(response, indent=2))
 
 @app.command()
-def getProcesses(queue_url:str):
+def getProcesses(queue_url:str=default_queue_url):
     data = {'job_type': const.GET_PROCESSES}
     response = submit_message(data, queue_url)
     print(json.dumps(response, indent=2))
 
 @app.command()
-def deployProcess(payload:str, queue_url:str):
+def deployProcess(payload:str, queue_url:str=default_queue_url):
     data = {'job_type': const.DEPLOY_PROCESS, 'payload_data' : payload}
     response = submit_message(data, queue_url, timeout=deploy_process_timeout_sec)
     print(json.dumps(response, indent=2))
 
 @app.command()
-def getProcessDescription(process_id: str, queue_url:str):
+def getProcessDescription(process_id: str, queue_url:str=default_queue_url):
     print(process_id)
     data = {'job_type': const.GET_PROCESS_DESCRIPTION, 'process_id' : process_id}
     response = submit_message(data, queue_url)
     print(json.dumps(response, indent=2))
 
 @app.command()
-def undeployProcess(process_id: str, queue_url:str):
+def undeployProcess(process_id: str, queue_url:str=default_queue_url):
     print(process_id)
     data = {'job_type': const.UNDEPLOY_PROCESS, 'process_id' : process_id}
     response = submit_message(data, queue_url)
     print(json.dumps(response, indent=2))
 
 @app.command()
-def getJobList(process_id: str, queue_url:str):
+def getJobList(process_id: str, queue_url:str=default_queue_url):
     data = {'job_type': const.GET_JOB_LIST, 'process_id' : process_id}
     response = submit_message(data, queue_url)
     print(json.dumps(response, indent=2))
 
 @app.command()
-def execute(process_id: str, payload_data: str, queue_url:str):
+def execute(process_id: str, payload_data: str, queue_url:str=default_queue_url):
     print(process_id)
     if os.path.exists(payload_data):
         with open(payload_data, 'r') as f:
@@ -282,21 +282,21 @@ def execute(process_id: str, payload_data: str, queue_url:str):
     print(json.dumps(response, indent=2))
 
 @app.command()
-def getStatus(process_id: str, job_id:str, queue_url:str):
+def getStatus(process_id: str, job_id:str, queue_url:str=default_queue_url):
     print(process_id)
     data = {'job_type': const.GET_STATUS, 'process_id' : process_id, 'job_id': job_id}
     response = submit_message(data, queue_url)
     print(json.dumps(response, indent=2))
 
 @app.command()
-def dismiss(process_id: str, job_id:str, queue_url:str):
+def dismiss(process_id: str, job_id:str, queue_url:str=default_queue_url):
     print(process_id)
     data = {'job_type': const.DISMISS, 'process_id' : process_id, 'job_id': job_id}
     response = submit_message(data, queue_url)
     print(json.dumps(response, indent=2))
 
 @app.command()
-def getResult(process_id: str, job_id:str, queue_url:str):
+def getResult(process_id: str, job_id:str, queue_url:str=default_queue_url):
     print(process_id)
     data = {'job_type': const.GET_RESULT, 'process_id' : process_id, 'job_id': job_id}
     response = submit_message(data, queue_url)

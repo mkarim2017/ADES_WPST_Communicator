@@ -44,10 +44,25 @@ class ADES_WPST_SQS():
         config.read(config_file)
 
         self._config = config
-        self._access_key=self._config["AWS_SQS_QUEUE"]["aws_access_key"]
-        self._secret_key=self._config["AWS_SQS_QUEUE"]["aws_secret_key"]
-        self._session_token = self._config["AWS_SQS_QUEUE"]["aws_session_token"]
-        self._region_name=self._config["AWS_SQS_QUEUE"]['region_name']
+        default_credential_file = os.path.join(os.path.expanduser('~'), ".aws/credentials")
+        default_profile = "maap-hec"
+
+        self._credentials_file =config["AWS_SQS_QUEUE"].get("aws_credentials_file", None)
+        self._credentials_file_profile = None
+
+        if self._credentials_file:
+            self._credentials_file_profile = self._config["AWS_SQS_QUEUE"].get('aws_credentials_file_profile', default_profile)
+            config2 = configparser.RawConfigParser()
+            config2.read(self._credentials_file)
+            self._access_key = config2.get(self._credentials_file_profile, 'aws_access_key_id')
+            self._secret_key = config2.get(self._credentials_file_profile, 'aws_secret_access_key')
+            self._session_token = None
+            self._region_name = config2.get(self._credentials_file_profile).get('aws_secret_access_key', 'us-west-2')
+        else:
+            self._access_key=self._config["AWS_SQS_QUEUE"]["aws_access_key"]
+            self._secret_key=self._config["AWS_SQS_QUEUE"]["aws_secret_key"]
+            self._session_token = self._config["AWS_SQS_QUEUE"]["aws_session_token"]
+            self._region_name = self._config["AWS_SQS_QUEUE"].get('region_name', 'us-west-2')
         self._reply_queue_dict = {}
         
         self._request_queue_name = request_queue_name
@@ -63,8 +78,8 @@ class ADES_WPST_SQS():
 
         self._reply_queue = None
         self._publisher = None
-        self.set_reply_queue(access_key=self._access_key, secret_key=self._secret_key, session_token=self._session_token, region_name=self._region_name)
-        self.set_publisher(access_key=self._access_key, secret_key=self._secret_key, session_token=self._session_token, region_name=self._region_name)   
+        self.set_reply_queue(access_key=self._access_key, secret_key=self._secret_key, session_token=self._session_token, region_name=self._region_name, credentials_file_profile=self._credentials_file_profile)
+        self.set_publisher(access_key=self._access_key, secret_key=self._secret_key, session_token=self._session_token, region_name=self._region_name, credentials_file_profile=self._credentials_file_profile)   
     
     def get_sqs_client(self):
         return boto3.client(
@@ -76,7 +91,7 @@ class ADES_WPST_SQS():
         )
 
     
-    def set_publisher(self, access_key, secret_key, session_token, region_name):
+    def set_publisher(self, access_key, secret_key, session_token, region_name, credentials_file_profile=None):
         self.reply_timeout_sec = int(self._config["AWS_SQS_QUEUE"].get("reply_timeout_sec", 20))
         self.execute_reply_timeout_sec = int(self._config["AWS_SQS_QUEUE"].get("execute_reply_timeout_sec", 600))
         self.deploy_process_timeout_sec = int(self._config["AWS_SQS_QUEUE"].get("deploy_process_timeout_sec", 900))
@@ -85,20 +100,22 @@ class ADES_WPST_SQS():
             access_key=access_key,
             secret_key=secret_key,
             session_token=session_token,
-            region_name=region_name
+            region_name=region_name,
+            credentials_file_profile=credentials_file_profile
         ).build()
 
     def get_publisher(self):
         return self._publisher
 
 
-    def set_reply_queue(self, access_key, secret_key, session_token, region_name):
+    def set_reply_queue(self, access_key, secret_key, session_token, region_name, credentials_file_profile=None):
         self._reply_queue = ReplyQueueFactory(
             name=self._reply_queue_name,
             access_key=access_key,
             secret_key=secret_key,
             session_token=session_token,
-            region_name=region_name
+            region_name=region_name,
+            credentials_file_profile=credentials_file_profile
         ).build()
 
         queue_name = os.path.basename(self._request_queue_name)
@@ -118,8 +135,8 @@ class ADES_WPST_SQS():
         os.environ["AWS_SECRET_ACCESS_KEY"] = secret_key
         os.environ["AWS_SESSION_TOKEN"] = session_token
 
-        self.set_reply_queue(access_key=self._access_key, secret_key=self._secret_key, session_token=self._session_token, region_name=self._region_name) 
-        self.set_publisher(access_key=self._access_key, secret_key=self._secret_key, session_token=self._session_token, region_name=self._region_name)
+        self.set_reply_queue(access_key=self._access_key, secret_key=self._secret_key, session_token=self._session_token, region_name=self._region_name, credentials_file_profile=self._credentials_file_profile) 
+        self.set_publisher(access_key=self._access_key, secret_key=self._secret_key, session_token=self._session_token, region_name=self._region_name, credentials_file_profile=self._credentials_file_profile)
 
         self._config["AWS_SQS_QUEUE"]["aws_access_key"] = access_key
         self._config["AWS_SQS_QUEUE"]["aws_secret_key"] = secret_key
@@ -165,7 +182,7 @@ class ADES_WPST_SQS():
         except Exception as e:
             print(e.__class__.__name__)
             print(str(e))
-            if "ExpiredToken" in str(e):
+            if "ExpiredToken" in str(e) and not self._credentials_file_profile:
                 self.refresh_aws_credentials()
 
         print("Updating Config Done")

@@ -27,14 +27,21 @@ class SqsConnection(SqsConnectionBase):
             raise Exception("Queue is not defined.")
 
     def _load_resource(self):
+        print(self._credentials_file_profile)
         if self._credentials_file_profile:
             session = boto3.Session(profile_name=self._credentials_file_profile)
         else:
-            session = boto3.Session(
-                aws_access_key_id=self._access_key,
-                aws_secret_access_key=self._secret_key,
-                aws_session_token=self._session_token
-            )
+            if self._session_token:
+                session = boto3.Session(
+                    aws_access_key_id=self._access_key,
+                    aws_secret_access_key=self._secret_key,
+                    aws_session_token=self._session_token
+                )
+            else:
+                session = boto3.Session(
+                    aws_access_key_id=self._access_key,
+                    aws_secret_access_key=self._secret_key
+                )
         self.resource = session.resource('sqs', region_name=self._region_name)
 
     def _load_client(self):
@@ -42,10 +49,18 @@ class SqsConnection(SqsConnectionBase):
             session = boto3.Session(profile_name=self._credentials_file_profile)
             self.client = session.client('sqs')
         else:
-            self.client = boto3.client(
-                'sqs',
-                aws_access_key_id=self._access_key,
-                aws_secret_access_key=self._secret_key,
-                aws_session_token=self._session_token,
-                region_name=self._region_name
-            )
+            if self._session_token:
+                self.client = boto3.client(
+                    'sqs',
+                    aws_access_key_id=self._access_key,
+                    aws_secret_access_key=self._secret_key,
+                    aws_session_token=self._session_token,
+                    region_name=self._region_name
+                )
+            else:
+                self.client = boto3.client(
+                    'sqs',
+                    aws_access_key_id=self._access_key,
+                    aws_secret_access_key=self._secret_key,
+                    region_name=self._region_name
+                )
