@@ -3,8 +3,6 @@ import configparser
 import json
 import os
 import uuid
-import backoff
-import botocore
 import boto3
 import requests
 
@@ -35,6 +33,7 @@ logger.addHandler(sh)
 logging.basicConfig(level=logging.INFO)
 '''
 
+
 class ADES_WPST_SQS():
     
     def __init__(self, request_queue_name=None, reply_queue_name="", config_file="./sqsconfig.py"):
@@ -57,7 +56,7 @@ class ADES_WPST_SQS():
             self._access_key = config2.get(self._credentials_file_profile, 'aws_access_key_id')
             self._secret_key = config2.get(self._credentials_file_profile, 'aws_secret_access_key')
             self._session_token = None
-            self._region_name = config2.get(self._credentials_file_profile).get('aws_secret_access_key', 'us-west-2')
+            self._region_name = 'us-west-2' #config2.get(self._credentials_file_profile, {}).get('aws_secret_access_key', 'us-west-2')
         else:
             self._access_key=self._config["AWS_SQS_QUEUE"]["aws_access_key"]
             self._secret_key=self._config["AWS_SQS_QUEUE"]["aws_secret_key"]
@@ -80,14 +79,19 @@ class ADES_WPST_SQS():
         self._publisher = None
         self.set_reply_queue(access_key=self._access_key, secret_key=self._secret_key, session_token=self._session_token, region_name=self._region_name, credentials_file_profile=self._credentials_file_profile)
         self.set_publisher(access_key=self._access_key, secret_key=self._secret_key, session_token=self._session_token, region_name=self._region_name, credentials_file_profile=self._credentials_file_profile)   
+
     
     def get_sqs_client(self):
-        return boto3.client(
-            'sqs',
-            aws_access_key_id=self._access_key,
-            aws_secret_access_key=self._secret_key,
-            aws_session_token=self._session_token,
-            region_name=self._region_name
+        if self._credentials_file_profile:
+            boto_session = boto3.Session(profile_name=self._credentials_file_profile)
+            return boto_session.client('sqs', region_name=self._region_name)
+        else:
+            return boto3.client(
+                'sqs',
+                aws_access_key_id=self._access_key,
+                aws_secret_access_key=self._secret_key,
+                aws_session_token=self._session_token,
+                region_name=self._region_name
         )
 
     
@@ -103,6 +107,7 @@ class ADES_WPST_SQS():
             region_name=region_name,
             credentials_file_profile=credentials_file_profile
         ).build()
+
 
     def get_publisher(self):
         return self._publisher
@@ -152,13 +157,13 @@ class ADES_WPST_SQS():
         account_number = self._config["AWS_SQS_QUEUE"].get("account_number")
         iam_role_name = self._config["AWS_SQS_QUEUE"].get("iam_role_name")
 
-        headers =  { 'accept': 'application/json', "Content-Type":"application/json", "Authorization": f"Bearer {api_key}"}
+        headers = {}
+        #headers =  { 'accept': 'application/json', "Content-Type":"application/json", "Authorization": f"Bearer {api_key}"}
         print(json.dumps(headers, indent=2))
         payload = {
             "account_number": str(account_number),
             "iam_role_name": str(iam_role_name)
         }
-        print(cred_url)
         response = requests.post(cred_url, data=json.dumps(payload), headers=headers).json()
         print(response)
         status = response['status']
@@ -171,9 +176,6 @@ class ADES_WPST_SQS():
         self.update_env(access_key, secret_key, session_token)
 
 
-    @backoff.on_exception(backoff.expo,
-                      botocore.exceptions.ClientError,
-                      max_time=10)
     def submit_message(self, data, request_queue_name=None, timeout=None):
         try:
             sqs = self.get_sqs_client()
@@ -185,13 +187,11 @@ class ADES_WPST_SQS():
             if "ExpiredToken" in str(e) and not self._credentials_file_profile:
                 self.refresh_aws_credentials()
 
-        print("Updating Config Done")
-
-
         if not request_queue_name:
             request_queue_name = self._request_queue_name
 
         request_queue_name = os.path.basename(request_queue_name)
+        # print(request_queue_name)
         self._request_queue_url = self.get_sqs_client().get_queue_url(QueueName=request_queue_name)['QueueUrl']
 
         if not timeout:
@@ -202,7 +202,6 @@ class ADES_WPST_SQS():
             reply_queue=self._reply_queue
         
         )
-        
 
         try:
             self.get_publisher().send_message(message)
@@ -221,8 +220,10 @@ class ADES_WPST_SQS():
         except Exception as e:
             return {"Error": str(e)}
 
+
     def cleanup(self):
         self._reply_queue.remove_queue()
+
 
     def getLandingPage(self):
         data = {'job_type': const.GET_LANDING_PAGE}
@@ -243,6 +244,7 @@ class ADES_WPST_SQS():
         print("\n\nProcesses: {}".format(proc_list))
         # print(json.dumps(response, indent=2))
         return proc_list
+
   
     def deployProcess(self, payload:str):
         data = {'job_type': const.DEPLOY_PROCESS, 'payload_data' : payload}
@@ -263,6 +265,7 @@ class ADES_WPST_SQS():
         response = self.submit_message(data, request_queue_name=self._request_queue_name)
         return response
 
+
     def getJobList(self, process_id: str):
         print("\nGET ALL JOBS for PROCESS : {}".format(process_id))
         data = {'job_type': const.GET_JOB_LIST, 'process_id' : process_id}
@@ -275,6 +278,7 @@ class ADES_WPST_SQS():
         print("\n\nJobs for process {} : {}".format(process_id, job_list))
         #print(json.dumps(response, indent=2))
         return job_list
+
 
     def execute(self, process_id: str, payload_data: str):
         print(process_id)
@@ -292,6 +296,7 @@ class ADES_WPST_SQS():
         response = self.submit_message(data, request_queue_name=self._request_queue_name, timeout=self.execute_reply_timeout_sec)
         print(json.dumps(response, indent=2))
         return response["jobID"]
+
 
     def getStatus(self, process_id: str, job_id:str):
         print("\nGET STATUS of PROCESS : {} JOB : {}".format(process_id, job_id))
@@ -313,6 +318,7 @@ class ADES_WPST_SQS():
         response = self.submit_message(data, request_queue_name=self._request_queue_name)
         return response
 
+
     def fullResult(self):
         processes = self.getProcesses()
         jobs = {}
@@ -328,4 +334,6 @@ def main():
     print(json.dumps(wpst.getLandingPage(), indent=2))
 
 
-main()
+if __name__ == "__main__":
+  main()
+

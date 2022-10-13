@@ -27,7 +27,7 @@ class SqsConnection(SqsConnectionBase):
             raise Exception("Queue is not defined.")
 
     def _load_resource(self):
-        print(self._credentials_file_profile)
+        # print(self._credentials_file_profile)
         if self._credentials_file_profile:
             session = boto3.Session(profile_name=self._credentials_file_profile)
         else:

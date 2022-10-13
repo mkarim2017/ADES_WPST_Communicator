@@ -120,7 +120,8 @@ class ReplyQueueFactory(BaseFactory):
             self._region_name,
             self._access_key, 
             self._secret_key,
-            self._session_token
+            self._session_token,
+            self._credentials_file_profile
         ).build()
     
     def _build_publisher(self):
@@ -128,5 +129,6 @@ class ReplyQueueFactory(BaseFactory):
             self._region_name,
             self._access_key, 
             self._secret_key,
-            self._session_token
+            self._session_token,
+            self._credentials_file_profile
         ).build()
