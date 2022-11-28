@@ -5,6 +5,7 @@ a sample daemonization script for the sqs listener
 import os
 import sys
 import json
+import boto3
 import logging
 import configparser
 import requests
@@ -25,7 +26,7 @@ from sqs_client.factories import SubscriberFactory, PublisherFactory
 logger = logging.getLogger('sqs_listener')
 logger.setLevel(logging.INFO)
 
-sh = logging.FileHandler('soamc_sqs_client.log')
+sh = logging.FileHandler('wpst_sqs_client.log')
 sh.setLevel(logging.INFO)
 
 formatstr = '[%(asctime)s - %(name)s - %(levelname)s]  %(message)s'
@@ -41,43 +42,6 @@ class MyParser(argparse.ArgumentParser):
         self.print_help()
         sys.exit(2)
 
-'''
-CONFIG_FILER_PATH = r'sqsconfig.py'
-
-config = configparser.ConfigParser()
-config.read(CONFIG_FILER_PATH)
-logger.info(config.sections())
-
-
-aws_credentials_file =config["AWS_SQS_QUEUE"]["aws_credentials_file"]
-AWS_ACCESS_KEY_ID = config.get('maap-hec', 'aws_access_key_id')
-AWS_SECRET_ACCESS_KEY = config.get('maap-hec', 'aws_secret_access_key')
-AWS_SESSION_TOKEN = None #config.get('maap-hec', 'aws_session_token')
-region_name=config["AWS_SQS_QUEUE"]['region_name']
-queue_url=config["AWS_SQS_QUEUE"]['queue_url']
-
-os.environ["AWS_SHARED_CREDENTIALS_FILE"] = aws_credentials_file 
-os.environ["AWS_ACCOUNT_ID"] = config["AWS_SQS_QUEUE"]["AWS_ACCOUNT_ID"]
-os.environ["AWS_ACCESS_KEY"] = AWS_ACCESS_KEY_ID
-os.environ["AWS_SECRET_ACCESS_KEY"] = AWS_SECRET_ACCESS_KEY
-os.environ["AWS_SESSION_TOKEN"] = AWS_SESSION_TOKEN
-logger.info(os.environ["AWS_ACCOUNT_ID"])
-wps_server = config["ADES_WPS-T_SERVER"]["wps_server_url"]
-
-
-subscriber = SubscriberFactory(
-    access_key=AWS_ACCESS_KEY_ID,
-    secret_key=AWS_SECRET_ACCESS_KEY,
-    region_name=region_name,
-    queue_url=queue_url
-).build()
-
-publisher = PublisherFactory(
-    access_key=AWS_ACCESS_KEY_ID,
-    secret_key=AWS_SECRET_ACCESS_KEY,
-    region_name=region_name
-).build()
-'''
 
 class TestHandler(MessageHandler):
     def submit_request(self, href, request_type, expected_response_code=200, payload_data=None, timeout=None):
@@ -92,7 +56,7 @@ class TestHandler(MessageHandler):
                 response = requests.get(wps_server_url, headers=headers, timeout=timeout)
             else:
                 response = requests.get(wps_server_url, headers=headers)
-            logger.debug(response.json())
+            #logger.debug(response.json())
         elif request_type.upper()=="POST":
             if payload_data:
                 logger.info("POST DATA : {}".format(wps_server_url))
@@ -111,11 +75,12 @@ class TestHandler(MessageHandler):
          
         response.raise_for_status()
         logger.info("status code: {}".format(response.status_code))
-        logger.info(json.dumps(response.json(), indent=2))
+        logger.info(response)
+        # logger.info(json.dumps(response.json(), indent=2))
 
-        
+       
         assert response.status_code == int(expected_response_code)
-
+        print(response.json())
         return json.dumps(response.json())
 
     def getLandingPage(self):
@@ -185,8 +150,8 @@ class TestHandler(MessageHandler):
             job_type = str(message_body["job_type"]).strip()
             
             logger.info("RECEIVED message : {}".format(message_body))
-            #logger.info(attributes)
-            #logger.info(messages_attributes)
+            logger.info(message.attributes)
+            print(message.attributes)
             logger.info("Received message of type : {}".format(job_type))
             if job_type == const.GET_LANDING_PAGE:
                 logger.info("Calling getLandingPage")
@@ -231,6 +196,7 @@ class MyDaemon(Daemon):
 
         logger.info("listener started")
 
+
 if __name__ == "__main__":
 
     config_file = r'sqsconfig.py'
@@ -271,7 +237,8 @@ if __name__ == "__main__":
         pass
 
     region_name=config["AWS_SQS_QUEUE"]['region_name']
-    queue_url=config["AWS_SQS_QUEUE"]['queue_url']
+    request_queue_name = config["AWS_SQS_QUEUE"]['request_queue_name']
+    # queue_url=config["AWS_SQS_QUEUE"]['queue_url']
 
     os.environ["AWS_ACCOUNT_ID"] = config["AWS_SQS_QUEUE"]["AWS_ACCOUNT_ID"]
     os.environ["AWS_ACCESS_KEY"] = AWS_ACCESS_KEY_ID
@@ -281,6 +248,20 @@ if __name__ == "__main__":
     logger.info(os.environ["AWS_ACCOUNT_ID"])
     wps_server = config["ADES_WPS-T_SERVER"]["wps_server_url"]
 
+
+    if aws_credentials_file_profile:
+        boto_session = boto3.Session(profile_name=aws_credentials_file_profile)
+        sqs_client = boto_session.client('sqs', region_name=region_name)
+    else:
+        sqs_client = boto3.client(
+            'sqs',
+            aws_access_key_id=AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+            aws_session_token=AWS_SESSION_TOKEN,
+            region_name=region_name
+        )
+
+    queue_url = sqs_client.get_queue_url(QueueName=request_queue_name)['QueueUrl']
 
     subscriber = SubscriberFactory(
         access_key=AWS_ACCESS_KEY_ID,
@@ -326,22 +307,3 @@ if __name__ == "__main__":
     else:
         logger.info("usage: %s start|stop|restart --verbose -c <config_file>" % sys.argv[0])
         sys.exit(2)
-
-    '''
-    if len(sys.argv) == 2:
-        if 'start' == sys.argv[1]:
-            logger.info("Starting listener daemon")
-            daemon.start()
-        elif 'stop' == sys.argv[1]:
-            logger.info("Attempting to stop the daemon")
-            daemon.stop()
-        elif 'restart' == sys.argv[1]:
-            daemon.restart()
-        else:
-            logger.info("Unknown command")
-            sys.exit(2)
-        sys.exit(0)
-    else:
-        logger.info("usage: %s start|stop|restart" % sys.argv[0])
-        sys.exit(2)
-    '''
