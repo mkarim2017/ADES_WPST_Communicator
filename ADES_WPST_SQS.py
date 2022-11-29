@@ -96,7 +96,7 @@ class ADES_WPST_SQS():
 
     
     def set_publisher(self, access_key, secret_key, session_token, region_name, credentials_file_profile=None):
-        self.reply_timeout_sec = int(self._config["AWS_SQS_QUEUE"].get("reply_timeout_sec", 20))
+        self.reply_timeout_sec = int(self._config["AWS_SQS_QUEUE"].get("reply_timeout_sec", 60))
         self.execute_reply_timeout_sec = int(self._config["AWS_SQS_QUEUE"].get("execute_reply_timeout_sec", 600))
         self.deploy_process_timeout_sec = int(self._config["AWS_SQS_QUEUE"].get("deploy_process_timeout_sec", 900))
 
@@ -212,7 +212,7 @@ class ADES_WPST_SQS():
         # print("submit_message : sent")
 
         try:
-            response = message.get_response(timeout=20)
+            response = message.get_response(timeout=60)
             #print(response.body)
             return json.loads(response.body)
         except ReplyTimeout:
