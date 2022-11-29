@@ -38,19 +38,19 @@ Update the following vatiables
   - region = region name, such as 'us-west-2'
 
   If not using credentials, update the following variables to communicate with aws:
-  - aws_access_key = {{ AWS_ACCESS_KEY }}
-  - aws_secret_key = {{ AWS_SECRET_KEY }}
-  - aws_session_token = {{ AWS_SESSION_TOKEN }}
+  - aws_access_key
+  - aws_secret_key
+  - aws_session_token
 
   If you are using auto refreshing of the aws access keys, update the following:
-  - cred_url =
-  - account_number =
-  - iam_role_name =
-  - api_key =
+  - cred_url
+  - account_number
+  - iam_role_name
+  - api_key
 
   For all cases, update the request and reply queue name. reply_queue_name is not required by wpst client daemon, but required by ADES_WPST_SQS
-  - request_queue_name = {{ REQUEST_QUEUE_NAME }}
-  - reply_queue_name = {{ REPLY_QUEUE_NAME }}
+  - request_queue_name: Name of the sqs queue where client submit the request
+  - reply_queue_name: Name of the sqs queue where client read the reply back from wpst server
 
 
 - DAEMON: Only needed for wpst_client_daemon, where you need to specify the paths for pid file, error and output log files:
