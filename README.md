@@ -8,17 +8,23 @@ ADES WPST Communicator is a service that works as proxy between WPST client and 
 
 ## wpst_client_daemon
 wpst_client_daemon.py: It is a service that works as proxy between WPST client and Flex Server. It run as a daemon service and use SQS queues to communicate with client.
-To configure the service, please see "Configuring SQSConfig" section.
+It subscribes to the request queue and when there is a message there from the client, it process the message, makes appropriate call to the Flex server to get the result and sent back the result to the client through reply queue.
+
+ To configure the service, please see "Configuring SQSConfig" section.
 
 To start the service : python wpst_client_daemon.py start
 To stop the service : python wpst_client_daemon.py stop
 
 
 ## SQS Queues
-
+SQS queues are used to communicate between client and wpst_client_daemon. User can  create necessary queues using the terraform or python script in cluster_provisioning directory. The two quesues used for WPST Communicator are request queue and reply queue. User must provide the name of these queues through the sqsconfig.py (Please see "Configuring SQSConfig" section).
+ 
+- request_queue_name
+- reply_queue_name
 
 ## ADES_WPST_SQS.py
 
+ADES_WPST_SQS.py is the client that submits request to wpst through request queue and get reply back through the reply queue.
 
 ## Configuring SQSConfig
 
